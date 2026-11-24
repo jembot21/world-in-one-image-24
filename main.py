@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 from functools import lru_cache
 from zipfile import ZipFile
 
@@ -16,7 +17,7 @@ sys.dont_write_bytecode = True
 
 
 def load_vendored_pillow():
-    """Native wheel extensions need real files; unpack beside the output."""
+    """Native wheel extensions need real files; unpack in the system temp directory."""
     abi = f"cp{sys.version_info.major}{sys.version_info.minor}"
     if abi not in ("cp313", "cp312") or sys.implementation.name != "cpython":
         raise RuntimeError("Use CPython 3.13 (or the bundled 3.12 fallback).")
@@ -25,7 +26,10 @@ def load_vendored_pillow():
         raise RuntimeError(f"The bundled Pillow wheel for {abi} is missing.")
     wheel = wheels[0]
     digest = hashlib.sha256(wheel.read_bytes()).hexdigest()[:16]
-    cache = OUTPUT / ".pillow" / f"{abi}-{digest}"
+    cache = (Path(tempfile.gettempdir()) / "makefun-news-image-20261124-pillow"
+             / f"{abi}-{digest}").resolve()
+    if cache.is_relative_to(OUTPUT.resolve()) or cache.is_relative_to(ROOT):
+        raise RuntimeError("The system temp directory must be outside the output directory and repository.")
     with ZipFile(wheel) as archive:
         for name in sorted(archive.namelist()):
             # Pillow's package and its adjacent native libraries are sufficient.

@@ -18,4 +18,4 @@ MAKEFUN_OUTPUT_DIR=/tmp/news-image-20261124 python3.12 main.py
 
 The result is `/tmp/news-image-20261124/entry.png`. Omit the environment variable to use `/output`; the output directory must be writable.
 
-Pillow 12.0.0 wheels for both Python versions are vendored in `vendor/`, and Liberation Sans regular and bold fonts are bundled in `fonts/`, allowing offline rendering without installing dependencies. The program selects the matching wheel and extracts its package and native libraries into a hidden `.pillow/` cache inside the output directory.
+Pillow 12.0.0 wheels for both Python versions are vendored in `vendor/`, and Liberation Sans regular and bold fonts are bundled in `fonts/`, allowing offline rendering without installing dependencies. The program selects the matching wheel and extracts its package and native libraries into a cache under the operating system's temp directory, outside the output directory and repository.
