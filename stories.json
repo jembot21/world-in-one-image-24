@@ -1,0 +1,83 @@
+{
+  "date": "Tuesday 24 November 2026",
+  "leads": [
+    {
+      "kicker": "CLIMATE / COP31 FALLOUT",
+      "headline": "Pacific nations forge climate bloc",
+      "body": "Pacific island nations began forming their own climate coalition after COP31 ended without an overarching deal. The Antalya Pact never mentioned \"fossil fuels\"; 90+ nations rejected it.",
+      "stat": {"value": "90+", "label": "nations rejected the pact"}
+    },
+    {
+      "kicker": "MARKETS / NVIDIA",
+      "headline": "Huang returns; markets rocket",
+      "body": "Jensen Huang returned as Nvidia CEO eleven days after resigning, amid pressure from Trump and investors. Nvidia rose 31% and the Nasdaq gained 6.5%.",
+      "stat": {"value": "+31%", "label": "Nvidia shares"}
+    },
+    {
+      "kicker": "UKRAINE / PEACE PLAN",
+      "headline": "Kyiv draws red lines",
+      "body": "Kyiv rejected legal recognition of Russia's occupation at the Stockholm summit. Geneva talks produced a \"refined framework\" from Trump's 28-point plan.",
+      "stat": {"value": "28", "label": "points in Trump's draft plan"}
+    },
+    {
+      "kicker": "US / VENEZUELA",
+      "headline": "US targets Maduro's cartel",
+      "body": "The US designated the alleged Maduro-led cartel a terrorist organisation. The USS Gerald R. Ford group is in the Caribbean; boat strikes have killed at least 83 people.",
+      "stat": {"value": "21", "label": "US boat strikes since September"}
+    },
+    {
+      "kicker": "INDONESIA / BANTEN",
+      "headline": "Banten fire: search goes on",
+      "body": "Police confirmed 24 dead in Saturday's Milkita factory fire in Banten. Rescuers searched unstable wreckage for ~30 missing workers.",
+      "stat": {"value": "~30", "label": "workers still missing"}
+    },
+    {
+      "kicker": "BRITAIN / CONCERT",
+      "headline": "Manchester concert cleared",
+      "body": "Police evacuated 12,000 people from a concert venue in Manchester. An unknown substance was detected in the air.",
+      "stat": {"value": "12,000", "label": "people evacuated"}
+    },
+    {
+      "kicker": "CHINA / APEC",
+      "headline": "APEC peace declaration",
+      "body": "Trump, Xi and Putin issued a symbolic joint declaration in Shenzhen. It focused on reducing nuclear risk and reforming the United Nations.",
+      "stat": {"value": "3", "label": "leaders"}
+    }
+  ],
+  "numbers": [
+    {"value": "+31%", "label": "Nvidia\nshares"},
+    {"value": "+6.5%", "label": "Nasdaq\nindex"},
+    {"value": "24", "label": "Banten fire\nconfirmed dead"},
+    {"value": "12,000", "label": "Manchester\nevacuated"},
+    {"value": "83", "label": "Killed in US\nboat strikes"},
+    {"value": "$43.9B", "label": "CrowdStrike\nZscaler deal"},
+    {"value": "74", "label": "Parastoo Ahmadi\nlashes"},
+    {"value": "0.639s", "label": "Verstappen\nwinning margin"}
+  ],
+  "briefs": [
+    {
+      "headline": "EU's 22nd sanctions package",
+      "body": "The proposal targets ~60 more Russian banks and 70+ more shadow-fleet vessels. All 27 EU states must approve it unanimously."
+    },
+    {
+      "headline": "CrowdStrike to buy Zscaler",
+      "body": "The $43.9B all-stock deal is the largest cybersecurity acquisition ever. Zscaler holders receive a 34% premium."
+    },
+    {
+      "headline": "Parastoo Ahmadi sentenced",
+      "body": "Ahmadi and four production-team members were sentenced to 74 lashes each for a virtual concert without hijab."
+    },
+    {
+      "headline": "Verstappen wins Las Vegas GP",
+      "body": "His 75th career win came by 0.639s, ahead of Norris and Piastri. The race saw 35 lead changes and 352 overtakes."
+    },
+    {
+      "headline": "Kanton Island evacuated",
+      "body": "All 40–50 residents were moved to Tarawa on 24 hours' notice, with El Niño and poor housing cited by Kiribati's government."
+    },
+    {
+      "headline": "Landmark ICJ ruling: Myanmar",
+      "body": "The ICJ's first-ever state genocide finding orders reparations and safe Rohingya return. Enforcement debate continues."
+    }
+  ]
+}
