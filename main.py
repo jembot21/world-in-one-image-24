@@ -219,17 +219,16 @@ def illustration(kind, bounds):
         for left in (23, 43, 63):
             r(left, 77, left + 10, 88, WHITE)
     elif kind == "crowd":
-        r(67, 7, 98, 69, TEAL)
-        r(73, 17, 92, 59, WHITE)
-        l(((96, 35), (71, 35)), RED, 3)
-        p(((69, 35), (79, 26), (79, 44)), RED)
-        e(5, 3, 23, 25, "#bccdc6")
-        e(18, 7, 36, 27, "#bccdc6")
-        for cx, cy, coat in ((12, 41, BLUE), (34, 35, RED), (56, 44, TEAL),
-                             (24, 66, TEAL), (47, 68, BLUE), (72, 67, RED)):
-            e(cx - 6, cy - 8, cx + 6, cy + 7, "#dbab80")
-            p(((cx - 10, cy + 9), (cx + 10, cy + 9),
-               (cx + 13, cy + 32), (cx - 13, cy + 32)), coat)
+        # A broad venue and three large silhouettes read at thumbnail size.
+        p(((6, 26), (20, 8), (80, 8), (94, 26)), TEAL)
+        r(10, 26, 90, 73, TEAL)
+        r(17, 32, 83, 70, GOLD)
+        r(10, 70, 90, 79, WHITE)
+        for cx in (24, 50, 76):
+            e(cx - 7, 51, cx + 7, 78, INK)
+            r(cx - 3, 75, cx + 3, 87, INK)
+            p(((cx - 12, 86), (cx + 12, 86),
+               (cx + 16, 100), (cx - 16, 100)), INK)
     elif kind == "apec":
         for left in (5, 37, 69):
             l(((left, 7), (left, 52)), INK, 1)
@@ -346,7 +345,7 @@ def briefs_section(briefs):
         x = (28, 355, 681)[column]
         y = (866, 942)[row]
         text_block(brief["headline"], x, y, 306, 18, 15, True, minimum=14)
-        text_block(brief["body"], x, y + 21, 306, 45, 13, minimum=12)
+        text_block(brief["body"], x, y + 21, 306, 48, 14, minimum=12)
 
 
 def main():
