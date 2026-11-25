@@ -1,21 +1,50 @@
 # The World in One Image — 24 November 2026
 
-[![make.fun bounty](https://make.fun/badge/news-image-20261124.svg)](https://make.fun/bounty/news-image-20261124)
+[![Bounty](https://make.fun/badge/news-image-20261124.svg)](https://make.fun/bounty/news-image-20261124)
 [![Entry rank](https://make.fun/badge/news-image-20261124/jembot21/world-in-one-image-24/rank.svg)](https://make.fun/bounty/news-image-20261124)
 [![Entry reward](https://make.fun/badge/news-image-20261124/jembot21/world-in-one-image-24/reward.svg)](https://make.fun/bounty/news-image-20261124)
 
-This make.fun entry renders a one-page newspaper for **Tuesday 24 November 2026**. It contains seven illustrated lead stories, a red numbers strip with eight statistics, and six world-news briefs. The leads cover Pacific nations forming a climate coalition after COP31, Nvidia's market rally, Ukraine's peace-plan red lines, the US designation of Maduro's alleged cartel, the Banten factory fire, Manchester's concert evacuation, and the APEC peace declaration.
+This make.fun entry renders a one-page newspaper for Tuesday 24 November 2026:
+ten illustrated lead stories, a red numbers strip with eight statistics, and
+sixteen world-news briefs.
 
-`main.py` reads the page content from `stories.json` and draws the layout and flat illustrations with Pillow. It produces a deterministic **1024×1024 PNG**, named `entry.png`, in the directory specified by `MAKEFUN_OUTPUT_DIR` when set, or `/output` otherwise. Repeated runs with the same content and bundled assets produce byte-identical PNGs; rendering uses no clock, randomness, or network access.
+The lead topics are the markets reversal, the Huawei verdict, the Hormuz claim
+and denial, the Banten fire toll, Ukraine's deadline, Venezuela's rejection, the
+COP31 Pacific bloc, the APEC declaration, the Cartagena siege, and Senegal's
+reinstated title.
 
-Use **CPython 3.12 or 3.13 on Linux x86-64**. From the repository root, run either command:
+`main.py` reads the content from `stories.json` and draws the newspaper layout
+and flat geometric illustrations with Pillow. It produces a deterministic
+1024 × 1024 PNG named `entry.png` in the directory specified by
+`MAKEFUN_OUTPUT_DIR` when set, otherwise in `/output`. Rendering uses no clock,
+randomness, or network access, and repeated runs produce byte-identical PNGs.
+No timestamps are added to the image.
 
-```bash
-MAKEFUN_OUTPUT_DIR=/tmp/news-image-20261124 python3.13 main.py
-# Or use Python 3.12:
-MAKEFUN_OUTPUT_DIR=/tmp/news-image-20261124 python3.12 main.py
+Run from the repository root with CPython 3.12 or 3.13 on Linux x86-64
+(manylinux-compatible). No dependency installation is needed. For example,
+render into a fresh scratch output directory outside the repository:
+
+```sh
+scratch_output="$(mktemp -d /tmp/news24-output.XXXXXX)"
+MAKEFUN_OUTPUT_DIR="$scratch_output" python3.12 main.py
 ```
 
-The result is `/tmp/news-image-20261124/entry.png`. Omit the environment variable to use `/output`; the output directory must be writable.
+Use `python3.13` in place of `python3.12` for CPython 3.13. The generated image
+is at `$scratch_output/entry.png`. To use the default `/output` directory, run
+`python3.12 main.py` with `MAKEFUN_OUTPUT_DIR` unset.
 
-Pillow 12.0.0 wheels for both Python versions are vendored in `vendor/`, and Liberation Sans regular and bold fonts are bundled in `fonts/`, allowing offline rendering without installing dependencies. The program selects the matching wheel and extracts its package and native libraries into a cache under the operating system's temp directory, outside the output directory and repository.
+Pillow 12.0.0 wheels for both CPython versions are vendored in `vendor/`, and
+Liberation Sans Regular and Bold fonts are bundled in `fonts/`, so rendering
+works offline. If Pillow is already installed, the program uses it. Otherwise,
+it extracts the matching vendored wheel into a wheel-hash cache under the
+operating system's temp directory, in `makefun-news24-pillow-cache/`. This cache
+stays outside the output directory and is reused on subsequent runs; no package
+installation or download occurs.
+
+The only generated output file is `entry.png`, capped at 1 MiB. Successful runs
+print JSON containing its path, dimensions, byte size, and number of checked
+text boxes. Text is measured before drawing, and every line's actual ink bounds
+are checked; overflow or lost words fail the render before the PNG is written.
+
+The project is licensed under the [MIT License](LICENSE). The bundled fonts'
+license is in [fonts/LICENSE.txt](fonts/LICENSE.txt).

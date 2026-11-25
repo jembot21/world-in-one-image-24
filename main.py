@@ -1,378 +1,483 @@
 #!/usr/bin/env python3
-"""Render the 24 November 2026 front page, using only bundled assets."""
+"""Render the supplied 24 November news digest, offline and deterministically."""
 
+from dataclasses import dataclass
+from functools import lru_cache
 import hashlib
+from io import BytesIO
+import itertools
 import json
+import math
 import os
 from pathlib import Path
 import sys
 import tempfile
-from functools import lru_cache
-from zipfile import ZipFile
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parent
-OUTPUT = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
-sys.dont_write_bytecode = True
+WIDTH = HEIGHT = 1024
+SCALE = 3
+MAX_PNG_BYTES = 1024 * 1024
+PAPER = "#F5F1E8"
+INK = "#191916"
+RED = "#BB3029"
 
 
-def load_vendored_pillow():
-    """Native wheel extensions need real files; unpack in the system temp directory."""
-    abi = f"cp{sys.version_info.major}{sys.version_info.minor}"
-    if abi not in ("cp313", "cp312") or sys.implementation.name != "cpython":
-        raise RuntimeError("Use CPython 3.13 (or the bundled 3.12 fallback).")
-    wheels = sorted((ROOT / "vendor").glob(f"pillow-12.0.0-{abi}-{abi}-*.whl"))
-    if not wheels:
-        raise RuntimeError(f"The bundled Pillow wheel for {abi} is missing.")
+def load_pillow():
+    """Use installed Pillow, or unpack the matching bundled CPython wheel."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        return Image, ImageDraw, ImageFont
+    except ImportError:
+        # An incomplete installed package must not mask the complete wheel.
+        for name in tuple(sys.modules):
+            if name == "PIL" or name.startswith("PIL."):
+                del sys.modules[name]
+
+    tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    wheels = sorted((ROOT / "vendor").glob(f"pillow-12.0.0-{tag}-{tag}-*.whl"))
+    if sys.implementation.name != "cpython" or len(wheels) != 1:
+        raise RuntimeError(
+            f"Pillow is unavailable and no unique vendored wheel matches {tag}. "
+            "Use CPython 3.12 or 3.13 on manylinux x86-64, or install Pillow."
+        )
     wheel = wheels[0]
-    digest = hashlib.sha256(wheel.read_bytes()).hexdigest()[:16]
-    cache = (Path(tempfile.gettempdir()) / "makefun-news-image-20261124-pillow"
-             / f"{abi}-{digest}").resolve()
-    if cache.is_relative_to(OUTPUT.resolve()) or cache.is_relative_to(ROOT):
-        raise RuntimeError("The system temp directory must be outside the output directory and repository.")
-    with ZipFile(wheel) as archive:
-        for name in sorted(archive.namelist()):
-            # Pillow's package and its adjacent native libraries are sufficient.
-            if not name.endswith("/") and name.startswith(("PIL/", "pillow.libs/")):
-                destination = cache / name
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                content = archive.read(name)
-                if not destination.is_file() or destination.read_bytes() != content:
-                    destination.write_bytes(content)
-    sys.path.insert(0, str(cache.resolve()))
-
-
-load_vendored_pillow()
-from PIL import Image, ImageDraw, ImageFont  # noqa: E402
-
-
-SCALE = 2
-PAPER = "#f4f0e5"
-CARD = "#fbf8f0"
-INK = "#172722"
-MUTED = "#505a52"
-RULE = "#babeb2"
-RED = "#c32c32"
-TEAL = "#267c74"
-SKY = "#dfece7"
-GOLD = "#efbb4d"
-WHITE = "#fffaf0"
-BLUE = "#245b8b"
-image = Image.new("RGB", (1024 * SCALE, 1024 * SCALE), PAPER)
-draw = ImageDraw.Draw(image)
-
-
-@lru_cache(maxsize=None)
-def font(size, bold=False):
-    weight = "Bold" if bold else "Regular"
-    other = "Regular" if bold else "Bold"
-    for candidate in (
-        ROOT / "fonts" / f"LiberationSans-{weight}.ttf",
-        ROOT / "fonts" / f"LiberationSans-{other}.ttf",
-    ):
-        if candidate.is_file():
+    digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+    cache_root = Path(tempfile.gettempdir()) / "makefun-news24-pillow-cache"
+    output = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")).resolve()
+    if cache_root.resolve().is_relative_to(output):
+        raise RuntimeError("The output directory must not contain the OS temp cache.")
+    cache = cache_root / f"{tag}-{digest[:20]}"
+    if not (cache / ".ready").is_file():
+        cache_root.mkdir(parents=True, exist_ok=True)
+        # Publish a complete extraction atomically; simultaneous runs can reuse it.
+        with tempfile.TemporaryDirectory(prefix="unpack-", dir=cache_root) as stage:
+            unpacked = Path(stage) / "pillow"
+            with zipfile.ZipFile(wheel) as archive:
+                archive.extractall(unpacked)
+            (unpacked / ".ready").write_text(digest, encoding="ascii")
             try:
-                return ImageFont.truetype(
-                    str(candidate), round(size * SCALE),
-                    layout_engine=ImageFont.Layout.BASIC,
-                )
+                unpacked.rename(cache)
             except OSError:
-                pass
-    # Pillow embeds a scalable font, so even a machine with no fonts can render.
-    return ImageFont.load_default(size=round(size * SCALE))
+                if not (cache / ".ready").is_file():
+                    raise
+    sys.path.insert(0, str(cache))
+    from PIL import Image, ImageDraw, ImageFont
+    return Image, ImageDraw, ImageFont
 
 
-def box(coords, fill, outline=None, width=1):
-    draw.rectangle(tuple(round(v * SCALE) for v in coords), fill=fill,
-                   outline=outline, width=round(width * SCALE))
+Image, ImageDraw, ImageFont = load_pillow()
 
 
-def ellipse(coords, fill):
-    draw.ellipse(tuple(round(v * SCALE) for v in coords), fill=fill)
+@dataclass(frozen=True)
+class Box:
+    x: float
+    y: float
+    w: float
+    h: float
 
 
-def line(points, fill=INK, width=1):
-    draw.line([(round(x * SCALE), round(y * SCALE)) for x, y in points],
-              fill=fill, width=round(width * SCALE))
+class TextOverflow(ValueError):
+    """Fail before writing an image rather than clipping or dropping words."""
 
 
-def polygon(points, fill):
-    draw.polygon([(round(x * SCALE), round(y * SCALE)) for x, y in points], fill=fill)
+class Newspaper:
+    def __init__(self):
+        self.image = Image.new("RGB", (WIDTH * SCALE, HEIGHT * SCALE), PAPER)
+        self.draw = ImageDraw.Draw(self.image)
+        self.text_boxes = []
 
+    @staticmethod
+    def px(value):
+        return int(round(value * SCALE))
 
-def text(x, y, content, size, bold=False, fill=INK):
-    draw.text((round(x * SCALE), round(y * SCALE)), content, font=font(size, bold),
-              fill=fill, anchor="lt")
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def font(size, bold=False):
+        weight = "Bold" if bold else "Regular"
+        return ImageFont.truetype(
+            str(ROOT / "fonts" / f"LiberationSans-{weight}.ttf"),
+            Newspaper.px(size),
+            layout_engine=ImageFont.Layout.BASIC,
+        )
 
+    @staticmethod
+    def line_width(line, font):
+        left, _, right, _ = font.getbbox(line)
+        return max(font.getlength(line), right - left)
 
-def wrap(content, size, bold, width):
-    result = []
-    for paragraph in content.split("\n"):
-        current = ""
-        for word in paragraph.split():
-            trial = f"{current} {word}" if current else word
-            if font(size, bold).getlength(trial) / SCALE <= width:
-                current = trial
+    def wrap(self, text, font, width, single_line=False):
+        if single_line:
+            return [text]
+        lines = []
+        for word in text.split():
+            if self.line_width(word, font) > width:
+                return None
+            candidate = f"{lines[-1]} {word}" if lines else word
+            if lines and self.line_width(candidate, font) <= width:
+                lines[-1] = candidate
             else:
-                if not current or font(size, bold).getlength(word) / SCALE > width:
-                    raise ValueError(f"Word cannot fit in text column: {word}")
-                result.append(current)
-                current = word
-        result.append(current)
-    return result
+                lines.append(word)
+        return lines
 
+    def layout(self, text, width, size, *, bold=False, leading=None, single_line=False):
+        font = self.font(size, bold)
+        lines = self.wrap(text, font, self.px(width), single_line)
+        if not lines:
+            return None
+        pitch = self.px(leading if leading is not None else size * 1.16)
+        bounds = [font.getbbox(line) for line in lines]
+        ink_top = min(b[1] for b in bounds)
+        height = max(i * pitch + b[3] - ink_top for i, b in enumerate(bounds))
+        fits_width = all(self.line_width(line, font) <= self.px(width) for line in lines)
+        return font, lines, pitch, ink_top, height, fits_width
 
-def text_block(content, x, y, width, height, size, bold=False, fill=INK, minimum=None):
-    minimum = size if minimum is None else minimum
-    for candidate in range(size, minimum - 1, -1):
-        rows = wrap(content, candidate, bold, width)
-        leading = round(candidate * 1.14)
-        if len(rows) * leading <= height:
-            for index, row in enumerate(rows):
-                text(x, y + index * leading, row, candidate, bold, fill)
-            return y + len(rows) * leading
-    raise ValueError(f"Text does not fit its panel: {content}")
+    def text_height(self, text, width, size, **style):
+        """Reserve whole pixels using the same wrapping and ink metrics as drawing."""
+        layout = self.layout(text, width, size, **style)
+        if layout is None or not layout[5]:
+            raise TextOverflow(f"Cannot wrap {text!r} within {width} pixels")
+        return math.ceil(layout[4] / SCALE)
 
+    def text(self, text, box, size, *, bold=False, color=INK, leading=None,
+             single_line=False, align="left", min_size=None):
+        """Fit every word and record the actual ink bounds of every text box."""
+        minimum = size if min_size is None else min_size
+        for font_pixels in range(self.px(size), self.px(minimum) - 1, -1):
+            used_size = font_pixels / SCALE
+            layout = self.layout(
+                text, box.w, used_size, bold=bold, leading=leading,
+                single_line=single_line,
+            )
+            if layout is None:
+                continue
+            font, lines, pitch, ink_top, height, fits_width = layout
+            if fits_width and height <= self.px(box.h):
+                break
+        else:
+            raise TextOverflow(f"Cannot fit {text!r} into {box}")
 
-def centered(content, x, y, width, size, bold=False, fill=INK):
-    actual = font(size, bold).getlength(content) / SCALE
-    text(x + (width - actual) / 2, y, content, size, bold, fill)
-
-
-def illustration(kind, bounds):
-    """Seven flat editorial drawings, in a fixed 100 by 100 coordinate space."""
-    x, y, w, h = bounds
-
-    def points(items):
-        return [(x + u * w / 100, y + v * h / 100) for u, v in items]
-
-    def r(a, b, c, d, color):
-        box((x + a * w / 100, y + b * h / 100,
-             x + c * w / 100, y + d * h / 100), color)
-
-    def e(a, b, c, d, color):
-        ellipse((x + a * w / 100, y + b * h / 100,
-                 x + c * w / 100, y + d * h / 100), color)
-
-    def p(items, color):
-        polygon(points(items), color)
-
-    def l(items, color=INK, weight=2):
-        line(points(items), color, weight)
-
-    r(0, 0, 100, 100, SKY)
-    if kind == "pacific":
-        e(63, 8, 91, 43, GOLD)
-        for ray in (((76, 0), (76, 5)), ((96, 22), (100, 22)),
-                    ((56, 23), (61, 23)), ((93, 5), (89, 10))):
-            l(ray, GOLD, 2)
-        r(0, 68, 100, 100, TEAL)
-        e(12, 69, 89, 101, "#e9cd8a")
-        l(((0, 82), (15, 82)), WHITE)
-        l(((88, 91), (100, 91)), WHITE)
-        for trunk, crown in ((32, 29), (61, 41)):
-            p(((trunk, 84), (trunk + 5, 84), (trunk + 9, crown),
-               (trunk + 5, crown)), "#715838")
-            cx = trunk + 7
-            for leaf in (
-                ((cx, crown), (cx - 25, crown - 7), (cx - 15, crown + 2)),
-                ((cx, crown), (cx - 22, crown + 15), (cx - 13, crown + 4)),
-                ((cx, crown), (cx + 21, crown - 11), (cx + 13, crown + 1)),
-                ((cx, crown), (cx + 25, crown + 11), (cx + 14, crown + 2)),
-                ((cx, crown), (cx + 2, crown - 20), (cx - 5, crown - 5)),
+        actual_bounds = []
+        for i, line in enumerate(lines):
+            left, _, right, _ = font.getbbox(line)
+            x = self.px(box.x)
+            if align == "center":
+                x += (self.px(box.w) - (right - left)) // 2
+            elif align == "right":
+                x += self.px(box.w) - (right - left)
+            position = (x - left, self.px(box.y) - ink_top + i * pitch)
+            ink = self.draw.textbbox(position, line, font=font)
+            if not (
+                ink[0] >= self.px(box.x) and ink[1] >= self.px(box.y)
+                and ink[2] <= self.px(box.x + box.w)
+                and ink[3] <= self.px(box.y + box.h)
+                and 0 <= ink[0] <= ink[2] <= WIDTH * SCALE
+                and 0 <= ink[1] <= ink[3] <= HEIGHT * SCALE
             ):
-                p(leaf, INK)
-    elif kind == "markets":
-        for level in (25, 50, 75):
-            l(((4, level), (96, level)), RULE, 1)
-        for left, top in ((10, 75), (29, 62), (48, 49), (67, 25)):
-            r(left, top, left + 12, 96, TEAL)
-        l(((6, 71), (29, 64), (45, 67), (65, 40), (91, 13)), RED, 4)
-        p(((91, 4), (94, 32), (76, 12)), RED)
-    elif kind == "ukraine":
-        l(((9, 18), (9, 92)), INK, 2)
-        l(((56, 28), (56, 92)), INK, 2)
-        r(10, 18, 47, 37, "#2375b9")
-        r(10, 38, 47, 57, GOLD)
-        r(57, 28, 95, 41, WHITE)
-        r(57, 42, 95, 54, BLUE)
-        r(57, 55, 95, 67, RED)
-        l(((40, 89), (52, 9)), RED, 4)
-    elif kind == "carrier":
-        r(0, 77, 100, 100, TEAL)
-        p(((5, 61), (95, 61), (81, 82), (23, 82)), "#637b7a")
-        r(13, 55, 96, 62, INK)
-        r(63, 33, 78, 55, "#8eaaa5")
-        r(60, 29, 81, 34, INK)
-        l(((72, 29), (72, 12)), INK, 2)
-        l(((66, 17), (83, 17)), INK, 2)
-        for left in (25, 40, 54):
-            p(((left, 45), (left + 3, 51), (left + 10, 53),
-               (left + 3, 55), (left - 4, 53)), INK)
-        l(((0, 90), (22, 90)), WHITE)
-        l(((49, 94), (80, 94)), WHITE)
-    elif kind == "factory":
-        p(((15, 67), (9, 38), (25, 49), (31, 8), (46, 34),
-           (56, 14), (70, 41), (86, 25), (92, 69)), RED)
-        p(((24, 65), (24, 43), (38, 52), (42, 25), (56, 54),
-           (69, 39), (77, 66)), GOLD)
-        r(13, 66, 94, 97, "#82958c")
-        p(((13, 66), (13, 56), (37, 66), (37, 55), (62, 66),
-           (62, 55), (86, 66)), INK)
-        r(84, 45, 93, 68, INK)
-        for left in (23, 43, 63):
-            r(left, 77, left + 10, 88, WHITE)
-    elif kind == "crowd":
-        # A broad venue and three large silhouettes read at thumbnail size.
-        p(((6, 26), (20, 8), (80, 8), (94, 26)), TEAL)
-        r(10, 26, 90, 73, TEAL)
-        r(17, 32, 83, 70, GOLD)
-        r(10, 70, 90, 79, WHITE)
-        for cx in (24, 50, 76):
-            e(cx - 7, 51, cx + 7, 78, INK)
-            r(cx - 3, 75, cx + 3, 87, INK)
-            p(((cx - 12, 86), (cx + 12, 86),
-               (cx + 16, 100), (cx - 16, 100)), INK)
-    elif kind == "apec":
-        for left in (5, 37, 69):
-            l(((left, 7), (left, 52)), INK, 1)
-        r(6, 7, 31, 36, WHITE)
-        for top in (7, 15, 23, 31):
-            r(6, top, 31, top + 3, RED)
-        r(6, 7, 16, 22, BLUE)
-        e(9, 11, 12, 15, WHITE)
-        r(38, 7, 63, 36, RED)
-        p(((46, 12), (48, 17), (53, 17), (49, 20), (50, 25),
-           (46, 22), (42, 25), (43, 20), (39, 17), (44, 17)), GOLD)
-        r(70, 7, 95, 16, WHITE)
-        r(70, 17, 95, 26, BLUE)
-        r(70, 27, 95, 36, RED)
-        p(((0, 64), (21, 55), (39, 80), (22, 97), (0, 88)), TEAL)
-        p(((100, 64), (80, 55), (62, 80), (80, 97), (100, 88)), RED)
-        p(((23, 60), (39, 54), (58, 66), (75, 63), (78, 79),
-           (56, 94), (37, 79)), "#dcae83")
-        p(((77, 60), (59, 53), (42, 64), (39, 76), (48, 80),
-           (59, 70), (71, 78)), "#edc39a")
-        l(((42, 76), (56, 85), (67, 77)), INK, 1)
-    else:
-        raise ValueError(f"Unknown illustration: {kind}")
+                raise TextOverflow(f"Ink for {line!r} escapes {box}: {ink}")
+            actual_bounds.append(ink)
+            self.draw.text(position, line, font=font, fill=color)
+        if " ".join(lines) != " ".join(text.split()):
+            raise TextOverflow(f"Words lost while fitting {text!r}")
+        self.text_boxes.append({
+            "text": text, "box": box, "size": used_size,
+            "lines": len(lines), "ink": actual_bounds,
+        })
+        return height / SCALE
+
+    def line(self, points, color=INK, width=0.6):
+        self.draw.line(
+            [(self.px(x), self.px(y)) for x, y in points],
+            fill=color, width=max(1, self.px(width)),
+        )
+
+    def rectangle(self, box, fill=None, outline=None, width=1):
+        self.draw.rectangle(
+            (self.px(box.x), self.px(box.y),
+             self.px(box.x + box.w), self.px(box.y + box.h)),
+            fill=fill, outline=outline, width=self.px(width),
+        )
+
+    def icon(self, kind, box):
+        """Ten small, flat illustrations, using only geometric Pillow shapes."""
+        def point(x, y):
+            return self.px(box.x + x * box.w / 32), self.px(box.y + y * box.h / 32)
+
+        def polygon(points, color=RED):
+            self.draw.polygon([point(x, y) for x, y in points], fill=color)
+
+        def rect(coords, color=RED):
+            self.draw.rectangle((*point(*coords[:2]), *point(*coords[2:])), fill=color)
+
+        def ellipse(coords, color=RED):
+            self.draw.ellipse((*point(*coords[:2]), *point(*coords[2:])), fill=color)
+
+        def stroke(points, width=2, color=RED):
+            self.draw.line([point(x, y) for x, y in points], fill=color,
+                           width=max(1, self.px(width * box.w / 32)))
+
+        if kind == "chart":
+            stroke([(3, 3), (3, 28), (29, 28)], 1.6)
+            stroke([(6, 23), (12, 17), (17, 19), (23, 5), (29, 14)], 3)
+            polygon([(24, 13), (29, 14), (29, 8)])
+        elif kind == "scales":
+            stroke([(16, 3), (16, 27)], 2.2)
+            stroke([(4, 9), (28, 9)], 2)
+            for x in (7, 25):
+                stroke([(x, 9), (x - 4, 18), (x + 4, 18), (x, 9)], 1)
+                polygon([(x - 5, 18), (x + 5, 18), (x + 3, 22), (x - 3, 22)])
+            polygon([(11, 26), (21, 26), (24, 29), (8, 29)])
+        elif kind == "ship":
+            rect((8, 10, 23, 18))
+            rect((11, 5, 15, 10))
+            polygon([(2, 19), (30, 19), (24, 26), (8, 26)])
+            stroke([(3, 29), (9, 28), (15, 29), (21, 28), (28, 29)], 1.5)
+        elif kind == "flame":
+            polygon([(16, 2), (21, 11), (25, 8), (29, 19), (26, 26),
+                     (20, 30), (11, 30), (5, 26), (3, 19), (9, 9),
+                     (11, 17), (15, 12)])
+            polygon([(16, 17), (22, 26), (18, 29), (13, 28), (11, 25)], PAPER)
+        elif kind == "shield":
+            polygon([(16, 2), (29, 7), (27, 21), (22, 27), (16, 31),
+                     (10, 27), (5, 21), (3, 7)])
+            stroke([(16, 7), (16, 24)], 2, PAPER)
+            stroke([(10, 15), (22, 15)], 2, PAPER)
+        elif kind == "sun":
+            ellipse((9, 9, 23, 23))
+            for a, b in [((16, 2), (16, 6)), ((16, 26), (16, 30)),
+                         ((2, 16), (6, 16)), ((26, 16), (30, 16)),
+                         ((5, 5), (8, 8)), ((24, 24), (27, 27)),
+                         ((5, 27), (8, 24)), ((24, 8), (27, 5))]:
+                stroke([a, b], 2)
+        elif kind == "islands":
+            ellipse((20, 3, 28, 11))
+            polygon([(3, 22), (10, 13), (17, 22)])
+            polygon([(15, 22), (21, 17), (28, 22)])
+            stroke([(3, 25), (10, 24), (17, 25), (24, 24), (29, 25)], 2)
+            stroke([(6, 29), (13, 28), (20, 29), (27, 28)], 1.5)
+        elif kind == "accord":
+            stroke([(8, 9), (24, 9), (16, 25), (8, 9)], 2)
+            for x, y in ((8, 9), (24, 9), (16, 25)):
+                ellipse((x - 5, y - 5, x + 5, y + 5))
+        elif kind == "store":
+            rect((5, 11, 27, 28))
+            polygon([(2, 11), (6, 4), (26, 4), (30, 11)])
+            rect((10, 15, 14, 20), PAPER)
+            rect((19, 16, 24, 28), PAPER)
+            stroke([(3, 29), (29, 29)], 1.5)
+        elif kind == "trophy":
+            polygon([(7, 3), (25, 3), (23, 17), (19, 21), (13, 21), (9, 17)])
+            stroke([(8, 7), (3, 7), (4, 15), (10, 17)], 2)
+            stroke([(24, 7), (29, 7), (28, 15), (22, 17)], 2)
+            rect((14, 20, 18, 27))
+            rect((9, 27, 23, 30))
+        else:
+            raise ValueError(f"Unknown illustration: {kind}")
+
+    def masthead(self, date):
+        self.rectangle(Box(0, 0, 1024, 5), fill=RED)
+        self.text("THE WORLD IN ONE IMAGE", Box(24, 12, 976, 46), 54,
+                  bold=True, align="center", single_line=True)
+        self.text(date.upper(), Box(24, 56, 976, 36), 44,
+                  bold=True, align="center", single_line=True)
+        self.line([(24, 100), (1000, 100)], RED, 2)
+        return 110
+
+    def leads(self, stories, top):
+        icons = ("chart", "scales", "ship", "flame", "shield", "sun",
+                 "islands", "accord", "store", "trophy")
+        measured = []
+        for story in stories:
+            measured.append({
+                "kicker": self.text_height(story["kicker"], 440, 9.5,
+                                           bold=True, single_line=True),
+                "headline": self.text_height(story["headline"], 440, 17,
+                                             bold=True, single_line=True),
+                "body": self.text_height(story["body"], 374, 11.5, leading=14),
+                "value": self.text_height(story["stat"]["value"], 85, 25,
+                                          bold=True, single_line=True),
+                "label": self.text_height(story["stat"]["label"], 85, 9.5,
+                                          leading=10.7),
+            })
+
+        y = top
+        for row in range(5):
+            pair = measured[row * 2:row * 2 + 2]
+            kicker_height = max(item["kicker"] for item in pair)
+            headline_height = max(item["headline"] for item in pair)
+            header_height = max(28, kicker_height + 4 + headline_height)
+            body_height = max(max(item["body"], item["value"] + 4 + item["label"])
+                              for item in pair)
+            body_top = y + header_height + 4
+            row_bottom = body_top + body_height + 3
+
+            for column, item in enumerate(pair):
+                index = row * 2 + column
+                story = stories[index]
+                x = 24 + column * 500
+                self.icon(icons[index], Box(x, y, 28, 28))
+                self.text(story["kicker"], Box(x + 36, y, 440, kicker_height), 9.5,
+                          bold=True, color=RED, single_line=True)
+                self.text(story["headline"],
+                          Box(x + 36, y + kicker_height + 4, 440, headline_height),
+                          17, bold=True, single_line=True)
+
+                # Share spare height above and below each body, instead of leaving
+                # it all below the final line. The pair uses one common card height.
+                body_y = body_top + (body_height - item["body"]) // 2
+                self.text(story["body"], Box(x, body_y, 374, item["body"]),
+                          11.5, leading=14)
+                stat_height = item["value"] + 4 + item["label"]
+                stat_y = body_top + (body_height - stat_height) // 2
+                self.line([(x + 383, body_top),
+                           (x + 383, body_top + body_height)], RED, 0.6)
+                self.text(story["stat"]["value"],
+                          Box(x + 391, stat_y, 85, item["value"]), 25,
+                          bold=True, color=RED, single_line=True)
+                self.text(story["stat"]["label"],
+                          Box(x + 391, stat_y + item["value"] + 4, 85, item["label"]),
+                          9.5, leading=10.7)
+                if row < 4:
+                    self.line([(x, row_bottom), (x + 476, row_bottom)], width=0.5)
+            y = row_bottom + (6 if row < 4 else 0)
+        self.line([(512, top), (512, y)], width=0.6)
+        return y
+
+    def numbers(self, numbers, top):
+        padding = 11
+        value_height = 26
+        label_height = max(self.text_height(item["label"], 110, 9.5, leading=10.7)
+                           for item in numbers)
+        height = padding * 2 + value_height + 3 + label_height
+        self.rectangle(Box(24, top, 976, height), fill=RED)
+        for index, item in enumerate(numbers):
+            x = 24 + index * 122
+            if index:
+                self.line([(x, top + padding), (x, top + height - padding)], PAPER, 0.5)
+            self.text(item["value"], Box(x + 6, top + padding, 110, value_height), 24,
+                      bold=True, color=PAPER, align="center", single_line=True)
+            self.text(item["label"],
+                      Box(x + 6, top + padding + value_height + 3, 110, label_height), 9.5,
+                      color=PAPER, align="center", leading=10.7)
+        return top + height
+
+    def briefs(self, stories, top):
+        self.text("AROUND THE WORLD", Box(24, top, 700, 17), 13, bold=True)
+        self.text("16 MORE STORIES", Box(780, top + 3, 220, 13), 9.5,
+                  color=RED, bold=True, align="right", single_line=True)
+        self.line([(24, top + 19), (1000, top + 19)], width=0.6)
+        content_top = top + 27
+        content_bottom = 981
+
+        # Balance consecutive stories by measured height, preserving reading order.
+        measured = [(self.text_height(story["headline"], 312, 12, bold=True, leading=13),
+                     self.text_height(story["body"], 312, 11, leading=12.2))
+                    for story in stories]
+        heights = [headline + 2 + body for headline, body in measured]
+        gap = 10
+
+        def column_height(start, end):
+            return sum(heights[start:end]) + max(0, end - start - 1) * gap
+
+        splits = min(
+            itertools.combinations(range(1, len(stories)), 2),
+            key=lambda ab: (
+                max(column_height(0, ab[0]), column_height(ab[0], ab[1]),
+                    column_height(ab[1], len(stories))),
+                ab,
+            ),
+        )
+        boundaries = (0, *splits, len(stories))
+        for column in range(3):
+            start, end = boundaries[column:column + 2]
+            if column_height(start, end) > content_bottom - content_top:
+                raise TextOverflow("Briefs cannot fit above the footer")
+            x = 24 + column * 332
+            y = content_top
+            for index in range(start, end):
+                story = stories[index]
+                headline_height, body_height = measured[index]
+                self.text(story["headline"], Box(x, y, 312, headline_height),
+                          12, bold=True, leading=13)
+                y += headline_height + 2
+                self.text(story["body"], Box(x, y, 312, body_height), 11, leading=12.2)
+                y += body_height
+                if index < end - 1:
+                    # Blend ink into the paper for a light rule, without a new hue.
+                    self.line([(x, y + gap // 2), (x + 312, y + gap // 2)],
+                              "#C9C6BE", 0.35)
+                    y += gap
+            if column:
+                self.line([(x - 10, content_top), (x - 10, content_bottom)], width=0.5)
+
+    def footer(self, date):
+        self.rectangle(Box(24, 989, 976, 24), outline=RED, width=1)
+        self.text("DATE CHECK", Box(33, 995, 76, 12), 9.5, bold=True, color=RED,
+                  single_line=True)
+        self.line([(113, 994), (113, 1008)], RED, 0.6)
+        self.text(f"Every story happened or was first reported on {date}.",
+                  Box(124, 994, 865, 14), 10.5, single_line=True)
+
+    def png_bytes(self):
+        image = self.image.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
+        buffer = BytesIO()
+        image.save(buffer, format="PNG", optimize=True, compress_level=9)
+        result = buffer.getvalue()
+        if len(result) > MAX_PNG_BYTES:
+            # A bounded palette retains smooth text if an encoder produces a larger PNG.
+            buffer = BytesIO()
+            image.quantize(colors=128, dither=Image.Dither.NONE).save(
+                buffer, format="PNG", optimize=True, compress_level=9,
+            )
+            result = buffer.getvalue()
+        if len(result) > MAX_PNG_BYTES:
+            raise ValueError(f"PNG exceeds 1 MiB: {len(result)} bytes")
+        return result
 
 
-def panel(x, y, width, height, accent):
-    box((x, y, x + width, y + height), CARD, RULE)
-    box((x, y, x + width, y + 4), accent)
+def read_stories():
+    stories = json.loads((ROOT / "stories.json").read_text(encoding="utf-8"))
+    if set(stories) != {"date", "leads", "numbers", "briefs"}:
+        raise ValueError("Expected date, leads, numbers and briefs")
+    if stories["date"] != "Tuesday 24 November 2026":
+        raise ValueError("This entry is for Tuesday 24 November 2026")
+    if tuple(len(stories[name]) for name in ("leads", "numbers", "briefs")) != (10, 8, 16):
+        raise ValueError("Expected exactly 10 leads, 8 numbers and 16 briefs")
+    for story in stories["leads"]:
+        if set(story) != {"kicker", "headline", "body", "stat"}:
+            raise ValueError("Each lead requires a kicker, headline, body and stat")
+        if set(story["stat"]) != {"value", "label"}:
+            raise ValueError("Each lead stat requires a value and label")
+    for number in stories["numbers"]:
+        if set(number) != {"value", "label"}:
+            raise ValueError("Each number requires a value and label")
+    for brief in stories["briefs"]:
+        if set(brief) != {"headline", "body"}:
+            raise ValueError("Each brief requires a headline and body")
+    return stories
 
 
-def kicker(story, index, x, y, size=13):
-    text(x, y, f"{index:02d} / {story['kicker']}", size, True, TEAL)
-
-
-def masthead(date):
-    text(28, 14, "WORLD DESK  /  THE DAILY PICTURE", 12, True, TEAL)
-    text(28, 38, "The World in One Image", 64, True)
-    text(28, 106, date, 28, True, RED)
-    line(((28, 140), (996, 140)), INK, 3)
-
-
-def top_leads(leads):
-    pacific, markets = leads[:2]
-    panel(28, 153, 574, 198, TEAL)
-    kicker(pacific, 1, 42, 164)
-    text_block(pacific["headline"], 42, 187, 366, 76, 34, True, minimum=33)
-    text_block(pacific["body"], 42, 269, 366, 74, 16, minimum=15)
-    illustration("pacific", (432, 187, 155, 94))
-    text(435, 289, pacific["stat"]["value"], 42, True, TEAL)
-    text_block(pacific["stat"]["label"], 435, 334, 153, 14, 11)
-
-    panel(616, 153, 380, 198, TEAL)
-    kicker(markets, 2, 630, 164)
-    text_block(markets["headline"], 630, 190, 240, 75, 32, True, minimum=31)
-    centered(markets["stat"]["value"], 879, 189, 103, 31, True, TEAL)
-    centered(markets["stat"]["label"], 879, 224, 103, 10, True)
-    illustration("markets", (883, 240, 98, 25))
-    text_block(markets["body"], 630, 274, 352, 69, 16, minimum=15)
-
-
-def numbers_strip(numbers):
-    box((0, 365, 1024, 454), RED)
-    text(28, 371, "THE DAY IN NUMBERS", 10, True, WHITE)
-    for index, number in enumerate(numbers):
-        x = 28 + index * 121
-        if index:
-            line(((x, 386), (x, 447)), "#df7977", 1)
-        centered(number["value"], x + 3, 387, 115, 30, True, WHITE)
-        for row, label in enumerate(number["label"].split("\n")):
-            centered(label, x + 3, 423 + row * 14, 115, 12, False, WHITE)
-
-
-def middle_leads(leads):
-    for index, x, width, art, accent in (
-        (2, 28, 313, "ukraine", RED),
-        (3, 355, 312, "carrier", TEAL),
-        (4, 681, 315, "factory", RED),
-    ):
-        story = leads[index]
-        panel(x, 469, width, 202, accent)
-        kicker(story, index + 1, x + 14, 481, 12)
-        text_block(story["headline"], x + 14, 505, width - 111, 62,
-                   27, True, minimum=26)
-        illustration(art, (x + width - 92, 505, 78, 56))
-        text_block(story["body"], x + 14, 574, width - 28, 68,
-                   15, minimum=14)
-        line(((x + 14, 643), (x + width - 14, 643)), RULE, 1)
-        text(x + 14, 649, story["stat"]["value"], 20, True, accent)
-        text(x + 77, 655, story["stat"]["label"], 11, False, MUTED)
-
-
-def lower_leads(leads):
-    for index, x, width, art in ((5, 28, 476, "crowd"), (6, 518, 478, "apec")):
-        story = leads[index]
-        panel(x, 685, width, 134, TEAL)
-        kicker(story, index + 1, x + 14, 697, 12)
-        text_block(story["headline"], x + 14, 720, width - 138, 31,
-                   26, True, minimum=24)
-        text_block(story["body"], x + 14, 757, width - 138, 54,
-                   15, minimum=14)
-        centered(story["stat"]["value"], x + width - 112, 699, 98, 29, True, TEAL)
-        centered(story["stat"]["label"], x + width - 112, 732, 98, 10, True)
-        illustration(art, (x + width - 110, 755, 96, 50))
-
-
-def briefs_section(briefs):
-    line(((28, 832), (996, 832)), INK, 2)
-    text(28, 843, "BRIEFS  /  THE REST OF THE WORLD", 14, True, TEAL)
-    for x in (348, 674):
-        line(((x, 866), (x, 1006)), RULE, 1)
-    line(((28, 936), (996, 936)), RULE, 1)
-    for index, brief in enumerate(briefs):
-        row, column = divmod(index, 3)
-        x = (28, 355, 681)[column]
-        y = (866, 942)[row]
-        text_block(brief["headline"], x, y, 306, 18, 15, True, minimum=14)
-        text_block(brief["body"], x, y + 21, 306, 48, 14, minimum=12)
+def render(stories):
+    newspaper = Newspaper()
+    top = newspaper.masthead(stories["date"])
+    top = newspaper.leads(stories["leads"], top)
+    top = newspaper.numbers(stories["numbers"], top + 10)
+    newspaper.briefs(stories["briefs"], top + 11)
+    newspaper.footer(stories["date"])
+    return newspaper.png_bytes(), newspaper.text_boxes
 
 
 def main():
-    with (ROOT / "stories.json").open(encoding="utf-8") as source:
-        stories = json.load(source)
-    for key, required in (("leads", 7), ("numbers", 8), ("briefs", 6)):
-        if len(stories[key]) != required:
-            raise ValueError(f"stories.json must contain {required} {key}.")
-    masthead(stories["date"])
-    top_leads(stories["leads"])
-    numbers_strip(stories["numbers"])
-    middle_leads(stories["leads"])
-    lower_leads(stories["leads"])
-    briefs_section(stories["briefs"])
-    OUTPUT.mkdir(parents=True, exist_ok=True)
-    destination = OUTPUT / "entry.png"
-    final = image.resize((1024, 1024), Image.Resampling.LANCZOS)
-    final.save(destination, format="PNG", compress_level=9, optimize=False)
-    payload = destination.read_bytes()
-    if len(payload) >= 1024 * 1024:
-        raise RuntimeError("The PNG exceeds the 1 MiB limit.")
-    print(f"{destination}: 1024x1024, {len(payload)} bytes, "
-          f"sha256 {hashlib.sha256(payload).hexdigest()}")
+    png, boxes = render(read_stories())
+    output = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
+    output.mkdir(parents=True, exist_ok=True)
+    destination = output / "entry.png"
+    destination.write_bytes(png)
+    print(json.dumps({
+        "file": str(destination), "width": WIDTH, "height": HEIGHT,
+        "bytes": len(png), "text_boxes_checked": len(boxes), "text_overflows": 0,
+    }, sort_keys=True))
 
 
 if __name__ == "__main__":

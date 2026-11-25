@@ -2,82 +2,92 @@
   "date": "Tuesday 24 November 2026",
   "leads": [
     {
-      "kicker": "CLIMATE / COP31 FALLOUT",
-      "headline": "Pacific nations forge climate bloc",
-      "body": "Pacific island nations began forming their own climate coalition after COP31 ended without an overarching deal. The Antalya Pact never mentioned \"fossil fuels\"; 90+ nations rejected it.",
-      "stat": {"value": "90+", "label": "nations rejected the pact"}
+      "kicker": "MARKETS / THE GREAT REVERSAL",
+      "headline": "Rally, surge, hangover",
+      "body": "On Monday Nvidia jumped 31.5%, adding about $950 billion in a day as Jensen Huang returned as CEO. On Tuesday Asia surged, then Wall Street reversed: Nvidia fell 5.9%, the chip index 7.9% and the Nasdaq 1.5%, while the Dow rose to close above 50,000.",
+      "stat": {"value": "$950B", "label": "added by Nvidia in one day"}
     },
     {
-      "kicker": "MARKETS / NVIDIA",
-      "headline": "Huang returns; markets rocket",
-      "body": "Jensen Huang returned as Nvidia CEO eleven days after resigning, amid pressure from Trump and investors. Nvidia rose 31% and the Nasdaq gained 6.5%.",
-      "stat": {"value": "+31%", "label": "Nvidia shares"}
+      "kicker": "US / CHINA TECH",
+      "headline": "Huawei convicted in Brooklyn",
+      "body": "A federal jury convicted Huawei and three subsidiaries on 10 of 12 counts, including bank fraud, sanctions violations and trade-secret theft, acquitting it of racketeering. Sentencing is set for 14 September 2027, with penalties possibly in the billions.",
+      "stat": {"value": "10/12", "label": "counts: guilty verdicts"}
     },
     {
-      "kicker": "UKRAINE / PEACE PLAN",
-      "headline": "Kyiv draws red lines",
-      "body": "Kyiv rejected legal recognition of Russia's occupation at the Stockholm summit. Geneva talks produced a \"refined framework\" from Trump's 28-point plan.",
-      "stat": {"value": "28", "label": "points in Trump's draft plan"}
-    },
-    {
-      "kicker": "US / VENEZUELA",
-      "headline": "US targets Maduro's cartel",
-      "body": "The US designated the alleged Maduro-led cartel a terrorist organisation. The USS Gerald R. Ford group is in the Caribbean; boat strikes have killed at least 83 people.",
-      "stat": {"value": "21", "label": "US boat strikes since September"}
+      "kicker": "HORMUZ / CLAIM AND DENIAL",
+      "headline": "Iran claims mined tankers; US denies",
+      "body": "Iran's Revolutionary Guard said four tankers struck naval mines in the Strait of Hormuz and that it attacked a container ship. CENTCOM rejected the claims, saying US forces have cleared the main shipping routes and they remain mine-free and in use.",
+      "stat": {"value": "4", "label": "tankers Iran says hit mines"}
     },
     {
       "kicker": "INDONESIA / BANTEN",
-      "headline": "Banten fire: search goes on",
-      "body": "Police confirmed 24 dead in Saturday's Milkita factory fire in Banten. Rescuers searched unstable wreckage for ~30 missing workers.",
-      "stat": {"value": "~30", "label": "workers still missing"}
+      "headline": "Factory fire toll rises to 26",
+      "body": "Authorities confirmed 26 workers dead and 8 still missing after Saturday's fire at a candy factory in Cikande, with more than 600 rescuers searching the ruin. Police opened a criminal negligence investigation and questioned 19 witnesses.",
+      "stat": {"value": "26", "label": "workers confirmed dead"}
     },
     {
-      "kicker": "BRITAIN / CONCERT",
-      "headline": "Manchester concert cleared",
-      "body": "Police evacuated 12,000 people from a concert venue in Manchester. An unknown substance was detected in the air.",
-      "stat": {"value": "12,000", "label": "people evacuated"}
+      "kicker": "UKRAINE / PEACE PLAN",
+      "headline": "Kyiv holds red lines as deadline lands",
+      "body": "Kyiv said it will never accept legal recognition of Russia's occupation, as President Zelensky revealed a US deadline of Thursday 27 November to answer the 28-point peace plan. An overnight strike on Zaporizhzhia killed 2 people and wounded 40.",
+      "stat": {"value": "27 Nov", "label": "US deadline for Kyiv's answer"}
     },
     {
-      "kicker": "CHINA / APEC",
-      "headline": "APEC peace declaration",
-      "body": "Trump, Xi and Putin issued a symbolic joint declaration in Shenzhen. It focused on reducing nuclear risk and reforming the United Nations.",
-      "stat": {"value": "3", "label": "leaders"}
+      "kicker": "US / VENEZUELA",
+      "headline": "Caracas: the cartel is 'nonexistent'",
+      "body": "As the US terrorist designation of the alleged Maduro-led cartel took effect, Caracas called the cartel 'nonexistent' and the designation a 'vile lie'; China's Xi Jinping sent Maduro a letter of support. US strikes on boats since September now number 21.",
+      "stat": {"value": "21", "label": "US boat strikes since September"}
+    },
+    {
+      "kicker": "CLIMATE / COP31 FALLOUT",
+      "headline": "Pacific nations forge climate bloc",
+      "body": "Pacific island nations began forming their own climate coalition after COP31 in Antalya ended without an overarching deal. The Antalya Pact never mentioned 'fossil fuels', and more than 90 nations rejected it.",
+      "stat": {"value": "90+", "label": "nations rejected the pact"}
+    },
+    {
+      "kicker": "APEC / SHENZHEN",
+      "headline": "Rivals sign a peace declaration",
+      "body": "At the APEC summit in Shenzhen, the leaders of the United States, China and Russia issued a symbolic joint 'peace declaration' on reducing nuclear risk and reforming the United Nations.",
+      "stat": {"value": "3", "label": "rival leaders, one statement"}
+    },
+    {
+      "kicker": "COLOMBIA / CARTAGENA",
+      "headline": "Supermarket siege: 30 held hostage",
+      "body": "Gunmen fleeing a failed armoured-truck robbery took about 30 customers and staff hostage inside a Cartagena supermarket on Tuesday. Police freed at least 10 hostages by evening, and no injuries were reported.",
+      "stat": {"value": "30", "label": "hostages taken on Tuesday"}
+    },
+    {
+      "kicker": "SPORT / AFRICA CUP",
+      "headline": "Senegal are champions again",
+      "body": "The Court of Arbitration for Sport unanimously reinstated Senegal as Africa Cup of Nations winners, confirming their 1-0 final victory over Morocco after the African confederation had stripped the title in March.",
+      "stat": {"value": "1-0", "label": "the final score, restored"}
     }
   ],
   "numbers": [
-    {"value": "+31%", "label": "Nvidia\nshares"},
-    {"value": "+6.5%", "label": "Nasdaq\nindex"},
-    {"value": "24", "label": "Banten fire\nconfirmed dead"},
-    {"value": "12,000", "label": "Manchester\nevacuated"},
-    {"value": "83", "label": "Killed in US\nboat strikes"},
-    {"value": "$43.9B", "label": "CrowdStrike\nZscaler deal"},
-    {"value": "74", "label": "Parastoo Ahmadi\nlashes"},
-    {"value": "0.639s", "label": "Verstappen\nwinning margin"}
+    {"value": "+31.5%", "label": "Nvidia on Monday"},
+    {"value": "-7.9%", "label": "chip index on Tuesday"},
+    {"value": "50,019", "label": "Dow close, a record"},
+    {"value": "26", "label": "dead in Banten fire"},
+    {"value": "10/12", "label": "Huawei guilty counts"},
+    {"value": "$43.9B", "label": "CrowdStrike-Zscaler deal"},
+    {"value": "74", "label": "lashes for singer Ahmadi"},
+    {"value": "0.639s", "label": "Verstappen winning margin"}
   ],
   "briefs": [
-    {
-      "headline": "EU's 22nd sanctions package",
-      "body": "The proposal targets ~60 more Russian banks and 70+ more shadow-fleet vessels. All 27 EU states must approve it unanimously."
-    },
-    {
-      "headline": "CrowdStrike to buy Zscaler",
-      "body": "The $43.9B all-stock deal is the largest cybersecurity acquisition ever. Zscaler holders receive a 34% premium."
-    },
-    {
-      "headline": "Parastoo Ahmadi sentenced",
-      "body": "Ahmadi and four production-team members were sentenced to 74 lashes each for a virtual concert without hijab."
-    },
-    {
-      "headline": "Verstappen wins Las Vegas GP",
-      "body": "His 75th career win came by 0.639s, ahead of Norris and Piastri. The race saw 35 lead changes and 352 overtakes."
-    },
-    {
-      "headline": "Kanton Island evacuated",
-      "body": "All 40–50 residents were moved to Tarawa on 24 hours' notice, with El Niño and poor housing cited by Kiribati's government."
-    },
-    {
-      "headline": "Landmark ICJ ruling: Myanmar",
-      "body": "The ICJ's first-ever state genocide finding orders reparations and safe Rohingya return. Enforcement debate continues."
-    }
+    {"headline": "EU's 22nd sanctions package", "body": "The proposal targets about 60 more Russian banks and over 70 shadow-fleet vessels. All 27 EU states must approve it unanimously."},
+    {"headline": "CrowdStrike to buy Zscaler", "body": "The $43.9B all-stock deal is the largest cybersecurity acquisition ever agreed. Zscaler holders receive a 34% premium."},
+    {"headline": "Iranian singer sentenced", "body": "Parastoo Ahmadi and four production-team members were sentenced to 74 lashes each for a virtual concert performed without hijab."},
+    {"headline": "Verstappen wins Las Vegas GP", "body": "His 75th career win, by 0.639 seconds over Norris, in a race with a record 35 lead changes and 352 overtakes."},
+    {"headline": "Kanton Island evacuated", "body": "All 40 to 50 residents of the Kiribati island were given 24 hours to move to Tarawa. El Nino and poor housing were cited; they may be away about four years."},
+    {"headline": "ICJ Myanmar ruling fallout", "body": "Debate continued over enforcing the first-ever state genocide finding, adopted 9-6, which ordered reparations and a safe Rohingya return."},
+    {"headline": "Manchester probe update", "body": "Police say 89 people showed symptoms after Sunday night's Co-op Live evacuation; pepper spray from an altercation is suspected. The London O2 show was postponed to 15 December."},
+    {"headline": "Gaza security chief killed", "body": "Israeli airstrikes killed Naeem Abu Nahel, director of Hamas's internal security apparatus, and six others, including two police officers."},
+    {"headline": "Poland summons Russian ambassador", "body": "Warsaw protested after three Russian Kh-101 missiles breached Polish airspace."},
+    {"headline": "Ukraine strikes Russian ships", "body": "Kyiv acknowledged a drone strike on the cargo ship Sparta II in the Gulf of Finland, alongside attacks on Russian vessels off Libya."},
+    {"headline": "Germany gains Delta access", "body": "Germany became the first country granted access to Ukraine's Delta battlefield system, under a letter of intent signed in Berlin."},
+    {"headline": "NATO vows space defence", "body": "Secretary General Mark Rutte said NATO will defend against threats in space, after reports Russia is preparing a nuclear-armed satellite."},
+    {"headline": "Ebola responders trapped in Congo", "body": "Heavy fighting near a hospital in Ituri province trapped Ebola responders and forced emergency teams to take cover for over 24 hours."},
+    {"headline": "Iraq orders oilfield takeover", "body": "Prime Minister al-Zaidi ordered the federal oil ministry to take over oilfields in Kurdish-guarded areas after an oil-smuggling investigation."},
+    {"headline": "Big rewards to catch AI cheats", "body": "South Korea offered rewards of up to $375,000 for catching students using AI to cheat in the national college entrance exam."},
+    {"headline": "Megaspeed blacklisted", "body": "The US Commerce Department blacklisted Singapore cloud company Megaspeed International over AI-chip diversion concerns."}
   ]
 }
